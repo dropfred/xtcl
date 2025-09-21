@@ -85,15 +85,15 @@ Xtcl::add_function(tcl, "clamp", clamp);
 
 Also, defined procs can be "overloaded" using several functions:
 
-    ```c++
-    Xtcl::add_function
-    (
-        tcl, "multi",
-        [] (std::string const & s) {/*...*/},
-        [] (int a, int b) {/*...*/},
-        :
-    );
-    ```
+```c++
+Xtcl::add_function
+(
+    tcl, "multi",
+    [] (std::string const & s) {/*...*/},
+    [] (int a, int b) {/*...*/},
+    :
+);
+```
 
 # Current limitations & caveats
 
