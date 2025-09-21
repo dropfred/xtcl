@@ -8,7 +8,6 @@
 #include <ranges>
 #include <expected>
 #include <string_view>
-#include <limits>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -21,6 +20,7 @@
 // error handling
 #include <format>
 #include <sstream>
+#include <limits>
 
 #include "xtcl_def.h"
 #include "xtcl_error.h"
