@@ -8,7 +8,6 @@
 #include <ranges>
 #include <expected>
 #include <string_view>
-#include <limits>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -21,6 +20,7 @@
 // error handling
 #include <format>
 #include <sstream>
+#include <limits>
 
 #include "xtcl_def.h"
 #include "xtcl_error.h"
@@ -214,14 +214,14 @@ namespace Xtcl
 
                 if (Tcl_GetWideIntFromObj(tcl, obj, &value) != TCL_OK)
                 {
-#if XTCL_USE_TCL_ERROR
+#if XTCL_ERROR_TCL
                     return Error::text(Tcl_GetString(Tcl_GetObjResult(tcl)));
 #else
                     return type_error<N>(obj);
 #endif
                 }
 
-#if XTCL_OVERFLOW_ERROR
+#if XTCL_ERROR_OVERFLOW
                 if constexpr (sizeof (N) < sizeof (Tcl_WideInt))
                 {
                     if (value > std::numeric_limits<N>::max())
@@ -266,7 +266,7 @@ namespace Xtcl
 
                 if (Tcl_GetDoubleFromObj(tcl, obj, &value) != TCL_OK)
                 {
-#if XTCL_USE_TCL_ERROR
+#if XTCL_ERROR_TCL
                     return Error::text(Tcl_GetString(Tcl_GetObjResult(tcl)));
 #else
                     return type_error<N>(obj);
@@ -292,7 +292,7 @@ namespace Xtcl
 
                 if (Tcl_ListObjGetElements(tcl, obj, &objc, &objv) != TCL_OK)
                 {
-#if XTCL_USE_TCL_ERROR
+#if XTCL_ERROR_TCL
                     return Error::text(Tcl_GetString(Tcl_GetObjResult(tcl)));
 #else
                     return detail::type_error<S<T>>(obj);
@@ -350,7 +350,7 @@ namespace Xtcl
 
                 if (Tcl_DictObjFirst(tcl, obj, &search, &key, &value, &done) != TCL_OK)
                 {
-#if XTCL_USE_TCL_ERROR
+#if XTCL_ERROR_TCL
                     return Error::text(Tcl_GetString(Tcl_GetObjResult(tcl)));
 #else
                     return detail::type_error<M<K, V>>(obj);
@@ -506,7 +506,7 @@ namespace Xtcl
 
             if (Tcl_GetBooleanFromObj (tcl, obj, &value) != TCL_OK)
             {
-#if XTCL_USE_TCL_ERROR
+#if XTCL_ERROR_TCL
                 return Error::text(Tcl_GetString(Tcl_GetObjResult(tcl)));
 #else
                 return detail::type_error<bool>(obj);
@@ -545,7 +545,7 @@ namespace Xtcl
 
             if (Tcl_ListObjGetElements(tcl, obj, &objc, &objv) != TCL_OK)
             {
-#if XTCL_USE_TCL_ERROR
+#if XTCL_ERROR_TCL
                 return Error::text(Tcl_GetString(Tcl_GetObjResult(tcl)));
 #else
                 return detail::type_error<std::vector<T>>(obj);
@@ -774,7 +774,7 @@ namespace Xtcl
 
             if (Tcl_ListObjGetElements(tcl, obj, &objc, &objv) != TCL_OK)
             {
-#if XTCL_USE_TCL_ERROR
+#if XTCL_ERROR_TCL
                 return Error::text(Tcl_GetString(Tcl_GetObjResult(tcl)));
 #else
                 return detail::type_error<std::tuple<Value<Ts>...>>(obj);

@@ -1,11 +1,13 @@
 # Xtcl
 
-Basic C++ 23 Tcl extension helper.
+C++ 23 Tcl extension helper.
 
-Not sure exactly why I did this. I was wondering: how feasible/easy/hard would it be is to automatically call (and handle errors nicely) a function expecting a fixed number of typed arguments from an old skool function `(argc, argv[])` style function expecting a variable number of untyped arguments? As many scripting languages use the `(argc, argv[])` paradigm for C extensions, I chose to do a helper for one of them as a practical exercise, and I ended up choosing Tcl because:
+Not sure exactly why I did this. I was wondering: how feasible/hard/easy would it be is to automatically call (and handle errors nicely) a function expecting a fixed number of typed arguments from an old school function `(argc, argv[])` style function expecting a variable number of untyped arguments? As many scripting languages use the `(argc, argv[])` paradigm for C extensions, I chose to do a helper for one of them as a practical exercise, and I ended up choosing Tcl because:
 
 - Extending Tcl is super easy.
-- For some reason, Tcl has a special place in my ❤️ (althought I haven't used it since - pfuuu... - 20 years?).
+- For some reason, Tcl has a special place in my heart ❤️ (althought I haven't used it in - pfuuu... - 25 years maybe?).
+
+I *might* revisit it one day for Python instead of Tcl, which would certainly be more useful and shouldn't require much effort.
 
 # Quick tour
 
@@ -51,20 +53,15 @@ int tcl_clamp(ClientData data, Tcl_Interp * tcl, int objc, Tcl_Obj * const objv[
 Tcl_CreateObjCommand(tcl, "clamp", tcl_clamp, NULL, NULL);
 ```
 
-Notice how errors are easy to make in the code above:
+That's a lot of boilerplate code! And these are just 3 basic float arguments, things get worse when containers come into play.
 
-- Errors on the hard-coded index when retrieving arguments (I know, I did it because of copy-paste). Could be mitigated with a `*ptr++` coding style, but still.
-- Forgetting to check the number of arguments before retrieveing them (again, I know...)
-
-And these are just 3 basic float arguments, things get much worse when lists or dictionaries come into play.
-
-`Xtcl` allows to do the same thing in a single-can't-be-simpler line:
+Using `Xtcl`, the above code is implemented in a single-can't-be-simpler line:
 
 ```c++
 Xtcl::add_function(tcl, "clamp", clamp);
 ```
 
-`Xtcl` is not limited to functions, it can be used with almost any callable object:
+`Xtcl` is not limited to functions:
 
 - A lambda:
 
@@ -83,17 +80,19 @@ Xtcl::add_function(tcl, "clamp", clamp);
     Xtcl::add_function(tcl, "add", Add {});
     ```
 
-Also, defined procs can be "overloaded" using several functions:
+A procedure can be "overloaded" using several functions:
 
-    ```c++
-    Xtcl::add_function
-    (
-        tcl, "multi",
-        [] (std::string const & s) {/*...*/},
-        [] (int a, int b) {/*...*/},
-        :
-    );
-    ```
+```c++
+Xtcl::add_function
+(
+    tcl, "multi",
+    [] (int n) {return "one int"sv;},
+    [] (std::string const & s) {return "one string"sv;},
+    [] (int x, int y) {return "two ints"sv;},
+    [] (int n, std::string const & s) {return "one int and one string"sv;},
+    :
+);
+```
 
 # Current limitations & caveats
 
@@ -110,8 +109,8 @@ Also, defined procs can be "overloaded" using several functions:
 Out of the box supported types:
 
 - arithmetic types: chars, ints, floats, and doubles
-- booleans
 - strings
+- booleans
 - tuples
 - most used containers: vectors, arrays, maps, and sets
 
@@ -120,63 +119,77 @@ Out of the box supported types:
 | integrals | `Tcl_WideInt` |
 | floating-points | `double` |
 | `bool` | boolean (`int`) |
-| `std::string`<br>`string_view` | string |
+| `std::string`<br>`string_view`<br>`C string` (optional) | string |
 | `std::tuple`<br>`std::vector`<br>`std::array`<br>`std::set`<br>`std::unordered_set` | list |
-| `std::map`<br>`std::unordered_map` | dict |
+| `std::map`<br>`std::unordered_map` | dictionary |
 
-### Integers overflows
+### Returning errors
 
-If the `XTCL_OVERFLOW_ERROR` definition is enabled (default), an error is raised when a Tcl integer cannot fit in the destination type. Otherwise, integers are simply truncated in the same way as in the C language.
+So far, the functions seen in the code snipets above always set the Tcl interpreter's result to the Tcl representation of the returned value (if any), and return `TCL_OK`. When errors can occur, the function should then return a `Xtcl::Result` object:
+
+```c++
+Xtcl::Result<int> idiv(int n, int d)
+{
+    if (d == 0) return Xtcl::Error::text("null denominator");
+
+    return (n / d);
+}
+```
 
 ### User type support
 
-If a type is not already supported, it is possible to support it by specializing the `Xtcl::Type` templated structure:
+If a type is not alreasy supported, the `Xtcl::Type` templated structure must be specialized:
 
 ```c++
 struct Usr
 {
-    int a, b;
-    float c;
+    int i;
+    float f;
 };
 
 template <> struct Xtcl::Type<Usr>
 {
-    // mandatory
+    // required
     static auto name() {return "<usr>"sv;}
 
-    // if used as an argument
+    // required if used as an argument
     static Xtcl::FromResult<Usr> from(Tcl_Interp * tcl, Tcl_Obj * obj)
     {
-        auto fields = Xtcl::from<std::tuple<int, int, float>>(tcl, obj);
+        auto fields = Xtcl::from<std::tuple<int, float>>(tcl, obj);
+
         if (not fields)
         {
             return Xtcl::Error::forward(fields.error());
         }
 
-        auto [a, b, c] = *fields;
+        auto [i, f] = *fields;
 
-        return Usr {a, b, c};
+        return Usr {i, f};
     }
 
-    // if used as a returned value
+    // required if used as a return value
     static Xtcl::ToResult to(Tcl_Interp * tcl, Usr const & value)
     {
-        return Xtcl::to(tcl, std::make_tuple(value.a, value.b, value.c));
+        return Xtcl::to(tcl, std::make_tuple(value.i, value.f));
     }
 };
 ```
 
 ### Qualification and references
 
-As seen in the code snipets above, qualifications and references are supported, not just plain values. Mutable references are also supported, but it rarely makes sense since values are disposed right after the call.
+As seen in the code snipets above, qualifications and references are supported, not just plain values. Mutable references are also supported, so refered values can be moved if necessary.
 
 ### C strings
 
-If the `XTCL_SUPPORT_CSTRING` definition is enabled (default), `char const *` values are assumed to be null terminating C strings.
+If the `XTCL_SUPPORT_CSTRING` definition is enabled (default), `char const *` values are assumed to be C strings. Notice that `char *` (no `const` qualification on the pointed value) are considered integers (if `XTCL_SUPPORT_POINTER` is enabled, see below), not strings.
 
 ### Pointers
 
-If the `XTCL_SUPPORT_POINTER` definition is enabled (default), pointers are supported. The pointee is assumed to be a single value, not an array (except for `char const *` if `XTCL_SUPPORT_CSTRING` definition is enabled, see above).
+If the `XTCL_SUPPORT_POINTER` definition is enabled (default), pointers are supported. The pointed value is assumed to be a single value, not an array (except for `char const *` if `XTCL_SUPPORT_CSTRING` definition is enabled, see above).
+
+### Integers overflows
+
+If the `XTCL_ERROR_OVERFLOW` definition is enabled (default), Tcl integer values that do not fit into the destination type are treated as errors. Otherwise, values are simply truncated in the same way as in the C language.
 
 ## Overloads
 
@@ -186,20 +199,31 @@ The way "overloads" are handled is quite dumb: functions are checked in the orde
 Xtcl::add_function
 (
     tcl, "ok",
-    [] (int) {std::cout << "got an int\n";},
-    [] (std::string const &) {std::cout << "got a string\n";}
+    [] (int) {std::cout << "int\n";},
+    [] (std::string const &) {std::cout << "string\n";}
 );
 
 Xtcl::add_function
 (
     tcl, "ko",
-    [] (std::string const &) {std::cout << "got a string\n";},
-    [] (int) {std::cout << "got an int\n";}
+    [] (std::string const &) {std::cout << "string\n";},
+    [] (int) {std::cout << "int\n";}
 );
 ```
 
-In the `ko` proc, the `int` flavored function will never be called since the `std::string` one is always valid.
+In the `ko` procedure, the `int` flavored function will never be called because the `std::string` one is always valid (assuming only one argument is provided):
+
+```
+% ok 123
+int
+% ko 123
+string
+```
+
+Notice that it is possible to define an procedure without any functions, in which case the arguments (if any) are ignored, and the procedure therefore never fails. Not very sure how it could be useful, maybe for meta-programming purpose?
 
 ## Error handling
 
-Because of the way "overloads" are designed, it is expected that some functions calls fail, and this is why error handling is somewhat convoluted. Error messages are costly in terms of CPU and memory, and so errors are first encapsulated in a `std::function`, and only if an error actually occurs (none of the overloads could be called) is the error message builded. When the `Xtcl::error::text()` function is used, only small strings should be passed so that SSO can apply to avoid heap allocation. In the same spirit, lambdas passed to the `Xtcl::error::generic()` function should have a small context.
+Because of the way overloads are designed, it is expected that some functions calls fail, and this is why error handling is somewhat convoluted: error messages are costly in terms of CPU and memory, and so errors are first encapsulated in a `std::function`, and only if an error actually occurs (none of the overloads could be called) is the error message builded.
+
+When the `Xtcl::error::text()` function is called, only short strings should be used so that SSO can be applied to avoid heap allocation. Similarly, the `Xtcl::error::generic()` function should be called with small objects.
