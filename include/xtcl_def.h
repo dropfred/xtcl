@@ -13,16 +13,16 @@
 #define XTCL_SUPPORT_POINTER 1
 #endif
 
-#ifndef XTCL_OVERFLOW_ERROR
-#define XTCL_OVERFLOW_ERROR 1
+#ifndef XTCL_ERROR_OVERFLOW
+#define XTCL_ERROR_OVERFLOW 1
 #endif
 
 #ifndef XTCL_HAS_LONG_DOUBLE
 #define XTCL_HAS_LONG_DOUBLE 0
 #endif
 
-#ifndef XTCL_USE_TCL_ERROR
-#define XTCL_USE_TCL_ERROR 0
+#ifndef XTCL_ERROR_TCL
+#define XTCL_ERROR_TCL 0
 #endif
 
 #endif

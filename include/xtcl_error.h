@@ -70,7 +70,7 @@ namespace Xtcl
             {
                 Error
                 {
-                    [msg = std::string {std::forward<T>(msg)}] (std::ostream &os)
+                    [msg = std::string {std::forward<T>(msg)}] (std::ostream & os)
                     {
                         os << msg;
                     }
