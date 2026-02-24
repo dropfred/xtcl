@@ -138,7 +138,7 @@ Xtcl::Result<int> idiv(int n, int d)
 
 ### User type support
 
-If a type is not alreasy supported, the `Xtcl::Type` templated structure must be specialized:
+If a type is not already supported, the `Xtcl::Type` templated structure must be specialized:
 
 ```c++
 struct Usr
