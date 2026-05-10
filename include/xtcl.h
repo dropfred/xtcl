@@ -25,9 +25,9 @@ namespace Xtcl
 {
     namespace detail
     {
-        using FunctionResult = Result<int>;
+        using TclResult = Result<int>;
 
-        using Function = std::function<FunctionResult (Tcl_Interp *, int, Tcl_Obj * const [])>;
+        using Function = std::function<TclResult (Tcl_Interp *, int, Tcl_Obj * const [])>;
 
         template<std::size_t S>
         struct CmdData
@@ -35,89 +35,89 @@ namespace Xtcl
             std::array<Function, S> fns;
         };
 
+        template <typename T>
+        struct FunctionResult
+        {
+            static ToResult to(Tcl_Interp * tcl, T const & value)
+            {
+                return Xtcl::to(tcl, value);
+            }
+        };
+
+        template <typename T>
+        struct FunctionResult<Result<T>>
+        {
+            static ToResult to(Tcl_Interp * tcl, Result<T> & value)
+            {
+                if (not value)
+                {
+                    return Error::forward(value.error());
+                }
+
+                return Xtcl::to(tcl, *value);
+            }
+        };
+
+#if XTCL_SUPPORT_POINTER
+        template <typename T>
+        struct FunctionResult<T *>
+        {
+            static ToResult to(Tcl_Interp * tcl, T * const value)
+            {
+                return Xtcl::to(tcl, *value);
+            }
+        };
+#endif
+
+#if XTCL_SUPPORT_CSTRING
+        template <>
+        struct FunctionResult<char const *>
+        {
+            static ToResult to(Tcl_Interp * tcl, char const * value)
+            {
+                return Xtcl::to(tcl, value);
+            }
+        };
+#endif
+
+        template <typename T>
+        struct FunctionArg
+        {
+            static T && forward(T & v) {return std::move(v);}
+        };
+
+        template <typename T>
+        struct FunctionArg<T &>
+        {
+            static T & forward(T & v) {return v;}
+        };
+
+        template <typename T>
+        struct FunctionArg<T &&>
+        {
+            static T && forward(T & v) {return std::move(v);}
+        };
+
+#if XTCL_SUPPORT_POINTER
+        template <typename T>
+        struct FunctionArg<T *>
+        {
+            static T * forward(T & v) {return &v;}
+        };
+#endif
+
+#if XTCL_SUPPORT_CSTRING
+        template <>
+        struct FunctionArg<char const *>
+        {
+            static char const * forward(char const *s) {return s;}
+        };
+#endif
+
         template <typename R, typename... As>
         struct FunctionHelper
         {
             static constexpr std::size_t const S {sizeof... (As)};
-
-            template <typename T>
-            struct Res
-            {
-                static ToResult to(Tcl_Interp * tcl, T const & value)
-                {
-                    return Xtcl::to(tcl, value);
-                }
-            };
-
-            template <typename T>
-            struct Res<Result<T>>
-            {
-                static ToResult to(Tcl_Interp * tcl, Result<T> & value)
-                {
-                    if (not value)
-                    {
-                        return Error::forward(value.error());
-                    }
-
-                    return Xtcl::to(tcl, *value);
-                }
-            };
-
-#if XTCL_SUPPORT_POINTER
-            template <typename T>
-            struct Res<T *>
-            {
-                static ToResult to(Tcl_Interp * tcl, T * const value)
-                {
-                    return Xtcl::to(tcl, *value);
-                }
-            };
-#endif
-
-#if XTCL_SUPPORT_CSTRING
-            template <>
-            struct Res<char const *>
-            {
-                static ToResult to(Tcl_Interp * tcl, char const * value)
-                {
-                    return Xtcl::to(tcl, value);
-                }
-            };
-#endif
-
-            template <typename T>
-            struct Arg
-            {
-                static T && forward(T & v) {return std::move(v);}
-            };
-
-            template <typename T>
-            struct Arg<T &>
-            {
-                static T & forward(T & v) {return v;}
-            };
-
-            template <typename T>
-            struct Arg<T &&>
-            {
-                static T && forward(T & v) {return std::move(v);}
-            };
-
-#if XTCL_SUPPORT_POINTER
-            template <typename T>
-            struct Arg<T *>
-            {
-                static T * forward(T & v) {return &v;}
-            };
-#endif
-
-#if XTCL_SUPPORT_CSTRING
-            template <>
-            struct Arg<char const *>
-            {
-                static char const * forward(char const *s) {return s;}
-            };
-#endif
 
             template <std::size_t... Is>
             static Function make(std::function<R (As...)> && fn, std::index_sequence<Is...>)
@@ -127,7 +127,7 @@ namespace Xtcl
 
                 return Function
                 {
-                    [fn = std::move(fn)] (Tcl_Interp * tcl, int objc, Tcl_Obj * const objv []) -> FunctionResult
+                    [fn = std::move(fn)] (Tcl_Interp * tcl, int objc, Tcl_Obj * const objv []) -> TclResult
                     {
                         Tcl_ResetResult(tcl);
 
@@ -148,21 +148,20 @@ namespace Xtcl
 
                         if constexpr (std::is_void_v<R>)
                         {
-                            fn(Arg<As>::forward(std::get<Is>(*args))...);
+                            fn(FunctionArg<As>::forward(std::get<Is>(*args))...);
 
                             return TCL_OK;
                         }
                         else
                         {
-                            auto r = fn(Arg<As>::forward(std::get<Is>(*args))...);
-                            auto res = Res<R>::to(tcl, r);
+                            auto r = FunctionResult<R>::to(tcl, fn(FunctionArg<As>::forward(std::get<Is>(*args))...));
 
-                            if (not res)
+                            if (not r)
                             {
-                                return Error::forward(res.error());
+                                return Error::forward(r.error());
                             }
 
-                            Tcl_SetObjResult(tcl, *res);
+                            Tcl_SetObjResult(tcl, *r);
 
                             return TCL_OK;
                         }
@@ -254,16 +253,6 @@ namespace Xtcl
     void add_function(Tcl_Interp * tcl, std::string const & name, Fs && ... fs)
     {
         detail::add_function(tcl, name.c_str(), std::forward<Fs>(fs)...);
-    }
-
-    bool command_complete(char const * cmd)
-    {
-        return (Tcl_CommandComplete(cmd) != 0);
-    }
-
-    bool command_complete(std::string const & cmd)
-    {
-        return command_complete(cmd.c_str());
     }
 }
 

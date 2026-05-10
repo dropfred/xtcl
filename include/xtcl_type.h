@@ -79,6 +79,41 @@ namespace Xtcl
 
     namespace detail
     {
+        template <typename...>
+        struct TupleFrom;
+
+        template <>
+        struct TupleFrom<>
+        {
+            static Xtcl::FromResult<std::tuple<>> values(Tcl_Interp * tcl, Tcl_Obj * const objv[])
+            {
+                return {};
+            }
+        };
+
+        template <typename V, typename... Vs>
+        struct TupleFrom<V, Vs...>
+        {
+            static constexpr std::size_t const S {sizeof... (Vs)};
+            
+            static Xtcl::FromResult<std::tuple<V, Vs...>> values(Tcl_Interp * tcl, Tcl_Obj * const objv[])
+            {
+                auto v = Xtcl::from<V>(tcl, objv[0]);
+                if (not v)
+                {
+                    return Error::index(v.error(), S - (sizeof... (Vs) + 1));
+                }
+
+                auto vs = TupleFrom<Vs...>::values(tcl, objv + 1);
+                if (not vs)
+                {
+                    return Error::forward(vs.error());
+                }
+
+                return std::tuple_cat(std::make_tuple(std::move(*v)), std::move(*vs));
+            }
+        };
+
         template <typename... Ts>
         class Tuple
         {
@@ -90,39 +125,6 @@ namespace Xtcl
             using Names = std::array<std::string_view, S>;
 
         private :
-
-            template <typename...>
-            struct From;
-
-            template <>
-            struct From<>
-            {
-                static Xtcl::FromResult<std::tuple<>> values(Tcl_Interp * tcl, Tcl_Obj * const objv[])
-                {
-                    return {};
-                }
-            };
-
-            template <typename V, typename... Vs>
-            struct From<V, Vs...>
-            {
-                static Xtcl::FromResult<std::tuple<V, Vs...>> values(Tcl_Interp * tcl, Tcl_Obj * const objv[])
-                {
-                    auto v = Xtcl::from<V>(tcl, objv[0]);
-                    if (not v)
-                    {
-                        return Error::index(v.error(), S - (sizeof... (Vs) + 1));
-                    }
-
-                    auto vs = From<Vs...>::values(tcl, objv + 1);
-                    if (not vs)
-                    {
-                        return Error::forward(vs.error());
-                    }
-
-                    return std::tuple_cat(std::make_tuple(std::move(*v)), std::move(*vs));
-                }
-            };
 
             template <std::size_t I>
             static ToResult to(Tcl_Interp * tcl, Tcl_Obj * obj, std::tuple<Ts...> const & values)
@@ -169,7 +171,7 @@ namespace Xtcl
                     );
                 }
 
-                return From<Value<Ts>...>::values(tcl, objv);
+                return TupleFrom<Value<Ts>...>::values(tcl, objv);
             }
 
             static ToResult to(Tcl_Interp * tcl, std::tuple<Ts...> const & values)
