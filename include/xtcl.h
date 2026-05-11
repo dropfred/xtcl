@@ -35,8 +35,9 @@ namespace Xtcl
             std::array<Function, S> fns;
         };
 
+#ifdef XTCL_GCC_FIX_N4659_17_7_3__2
         template <typename T>
-        struct FunctionResult
+        struct FunctionReturn
         {
             static ToResult to(Tcl_Interp * tcl, T const & value)
             {
@@ -45,7 +46,7 @@ namespace Xtcl
         };
 
         template <typename T>
-        struct FunctionResult<Result<T>>
+        struct FunctionReturn<Result<T>>
         {
             static ToResult to(Tcl_Interp * tcl, Result<T> & value)
             {
@@ -60,7 +61,7 @@ namespace Xtcl
 
 #if XTCL_SUPPORT_POINTER
         template <typename T>
-        struct FunctionResult<T *>
+        struct FunctionReturn<T *>
         {
             static ToResult to(Tcl_Interp * tcl, T * const value)
             {
@@ -71,7 +72,7 @@ namespace Xtcl
 
 #if XTCL_SUPPORT_CSTRING
         template <>
-        struct FunctionResult<char const *>
+        struct FunctionReturn<char const *>
         {
             static ToResult to(Tcl_Interp * tcl, char const * value)
             {
@@ -113,10 +114,94 @@ namespace Xtcl
             static char const * forward(char const *s) {return s;}
         };
 #endif
-
+#endif
         template <typename R, typename... As>
         struct FunctionHelper
         {
+#ifdef XTCL_GCC_FIX_N4659_17_7_3__2
+            template <typename T> using Return = FunctionReturn<T>;
+            template <typename T> using Arg = FunctionArg<T>;
+#else
+            template <typename T>
+            struct Return
+            {
+                static ToResult to(Tcl_Interp* tcl, T const& value)
+                {
+                    return Xtcl::to(tcl, value);
+                }
+            };
+
+            template <typename T>
+            struct Return<Result<T>>
+            {
+                static ToResult to(Tcl_Interp* tcl, Result<T>& value)
+                {
+                    if (not value)
+                    {
+                        return Error::forward(value.error());
+                    }
+
+                    return Xtcl::to(tcl, *value);
+                }
+            };
+
+#if XTCL_SUPPORT_POINTER
+            template <typename T>
+            struct Return<T*>
+            {
+                static ToResult to(Tcl_Interp* tcl, T* const value)
+                {
+                    return Xtcl::to(tcl, *value);
+                }
+            };
+#endif
+
+#if XTCL_SUPPORT_CSTRING
+            template <>
+            struct Return<char const*>
+            {
+                static ToResult to(Tcl_Interp* tcl, char const* value)
+                {
+                    return Xtcl::to(tcl, value);
+                }
+            };
+#endif
+
+            template <typename T>
+            struct Arg
+            {
+                static T&& forward(T& v) { return std::move(v); }
+            };
+
+            template <typename T>
+            struct Arg<T&>
+            {
+                static T& forward(T& v) { return v; }
+            };
+
+            template <typename T>
+            struct Arg<T&&>
+            {
+                static T&& forward(T& v) { return std::move(v); }
+            };
+
+#if XTCL_SUPPORT_POINTER
+            template <typename T>
+            struct Arg<T*>
+            {
+                static T* forward(T& v) { return &v; }
+            };
+#endif
+
+#if XTCL_SUPPORT_CSTRING
+            template <>
+            struct Arg<char const*>
+            {
+                static char const* forward(char const* s) { return s; }
+            };
+#endif
+#endif
+
             static constexpr std::size_t const S {sizeof... (As)};
 
             template <std::size_t... Is>
@@ -148,13 +233,13 @@ namespace Xtcl
 
                         if constexpr (std::is_void_v<R>)
                         {
-                            fn(FunctionArg<As>::forward(std::get<Is>(*args))...);
+                            fn(Arg<As>::forward(std::get<Is>(*args))...);
 
                             return TCL_OK;
                         }
                         else
                         {
-                            auto r = FunctionResult<R>::to(tcl, fn(FunctionArg<As>::forward(std::get<Is>(*args))...));
+                            auto r = Return<R>::to(tcl, fn(Arg<As>::forward(std::get<Is>(*args))...));
 
                             if (not r)
                             {

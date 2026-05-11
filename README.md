@@ -139,12 +139,12 @@ Xtcl::Result<int> idiv(int n, int d)
 
 ### User type support
 
-If a type is not already supported, the `Xtcl::Type` templated structure must be specialized. The `Xtcl::Type` specialization for type `T` should provide:
-- A `<string like> name()` static function.
-- A `Xtcl::FromResult<T> from(Tcl_Interp *, Tcl_Obj *)` static function if `T` is used as arguments.
-- A `Xtcl::ToResult to(Tcl_Interp *, T const &)` static function if `T` is used as returns.
+If a type is not already supported, the `Xtcl::Type` templated structure must be specialized. The specialization for type `T` should provide:
+- A _`<string like>`_ `name()` static function (used in error messages).
+- A `Xtcl::FromResult<T> from(Tcl_Interp *, Tcl_Obj *)` if type `T` is used as an argument.
+- A `Xtcl::ToResult to(Tcl_Interp *, T const &)` if type `T` is used as a return value.
 
-For example, let's say you want to support the structure below:
+For example, let's say you want to support functions dealing with the structure below:
 
 ```c++
 struct Vec2
@@ -153,7 +153,7 @@ struct Vec2
 };
 ```
 
-It's up to you how a C++ object is represented in Tcl, in this case an array is probably the most natural.
+It's up to you how a C++ object is represented in Tcl. In this example a `std::array<float, 2>` is probably the most natural:
 
 ```c++
 template <> struct Xtcl::Type<Vec2>
@@ -200,7 +200,7 @@ Xtcl::add_function(tcl, "vec2_new", vec2_new);
 Xtcl::add_function(tcl, "vec2_dot", vec2_dot);
 ```
 
-The `Vec2` type and its associated functions are now available in Tcl:
+The `Vec2` related functions are now available in Tcl:
 
 ```
 % set a [vec2_new 0.0 1.0]
@@ -222,10 +222,6 @@ If the `XTCL_SUPPORT_CSTRING` definition is enabled (default), `char const *` va
 ### Pointers
 
 If the `XTCL_SUPPORT_POINTER` definition is enabled (default), pointers are supported. The pointed value is assumed to be a single value, not an array (except for `char const *` if `XTCL_SUPPORT_CSTRING` definition is enabled, see above).
-
-### Integers overflows
-
-If the `XTCL_ERROR_OVERFLOW` definition is enabled (default), Tcl integer values that do not fit into the destination type are treated as errors. Otherwise, values are simply truncated in the same way as in the C language.
 
 ## Overloads
 
@@ -260,13 +256,17 @@ got a string
 got a string
 ```
 
-Note that it is possible to define an procedure without any functions, in which case the arguments (if any) are ignored, and the procedure therefore never fails. Not very sure how it could be useful, maybe for meta-programming purpose?
+It is possible to define an procedure without any functions, in which case the arguments (if any) are ignored, and the procedure therefore never fails. Not very sure how it could be useful, maybe for meta-programming purpose?
 
 ## Error handling
 
 Because of the way overloads are designed, it is expected that some functions calls fail, and this is why error handling is somewhat convoluted: error messages are costly, so errors are first encapsulated in a `std::function`, and only if an error actually occurs (none of the overloads could be called) is the error message builded.
 
-When the `Xtcl::error::text()` function is called, only short strings should be used so that SSO can be applied to avoid heap allocation.
+When the `Xtcl::error::text()` function is called, only short strings should be used so that SSO can be applied.
+
+### Integers overflows
+
+If the `XTCL_ERROR_OVERFLOW` definition is enabled (default), Tcl integer values that do not fit into the destination type are treated as errors. Otherwise, values are simply truncated in the same way as in the C language.
 
 ## README code
 
