@@ -80,7 +80,7 @@ namespace Xtcl
     namespace detail
     {
 #ifdef XTCL_GCC_FIX_N4659_17_7_3__2
-        template <typename...>
+        template <typename ...>
         struct TupleFrom;
 
         template <>
@@ -92,17 +92,17 @@ namespace Xtcl
             }
         };
 
-        template <typename V, typename... Vs>
+        template <typename V, typename ...Vs>
         struct TupleFrom<V, Vs...>
         {
-            static constexpr std::size_t const S {sizeof... (Vs)};
-            
+            static constexpr std::size_t const S {sizeof ...(Vs)};
+
             static Xtcl::FromResult<std::tuple<V, Vs...>> values(Tcl_Interp * tcl, Tcl_Obj * const objv[])
             {
                 auto v = Xtcl::from<V>(tcl, objv[0]);
                 if (not v)
                 {
-                    return Error::index(v.error(), S - (sizeof... (Vs) + 1));
+                    return Error::index(v.error(), S - (sizeof ...(Vs) + 1));
                 }
 
                 auto vs = TupleFrom<Vs...>::values(tcl, objv + 1);
@@ -115,36 +115,36 @@ namespace Xtcl
             }
         };
 #endif
-        template <typename... Ts>
+        template <typename ...Ts>
         class Tuple
         {
 #ifdef XTCL_GCC_FIX_N4659_17_7_3__2
-            template <typename...>
+            template <typename ...>
             using From = TupleFrom<Ts...>;
 #else
-            template <typename...>
+            template <typename ...>
             struct From;
 
             template <>
             struct From<>
             {
-                static Xtcl::FromResult<std::tuple<>> values(Tcl_Interp* tcl, Tcl_Obj* const objv[])
+                static Xtcl::FromResult<std::tuple<>> values(Tcl_Interp * tcl, Tcl_Obj * const objv[])
                 {
                     return {};
                 }
             };
 
-            template <typename V, typename... Vs>
+            template <typename V, typename ...Vs>
             struct From<V, Vs...>
             {
-                static constexpr std::size_t const S {sizeof... (Vs)};
+                static constexpr std::size_t const S {sizeof ...(Vs)};
 
-                static Xtcl::FromResult<std::tuple<V, Vs...>> values(Tcl_Interp* tcl, Tcl_Obj* const objv[])
+                static Xtcl::FromResult<std::tuple<V, Vs...>> values(Tcl_Interp * tcl, Tcl_Obj * const objv[])
                 {
                     auto v = Xtcl::from<V>(tcl, objv[0]);
                     if (not v)
                     {
-                        return Error::index(v.error(), S - (sizeof... (Vs) + 1));
+                        return Error::index(v.error(), S - (sizeof ...(Vs) + 1));
                     }
 
                     auto vs = From<Vs...>::values(tcl, objv + 1);
@@ -160,7 +160,7 @@ namespace Xtcl
 
         public :
 
-            static constexpr std::size_t const S {sizeof... (Ts)};
+            static constexpr std::size_t const S {sizeof ...(Ts)};
 
             using Values = std::tuple<Value<Ts>...>;
             using Names = std::array<std::string_view, S>;
@@ -450,7 +450,7 @@ namespace Xtcl
     }
 }
 
-template <typename... As>
+template <typename ...As>
 std::ostream & operator << (std::ostream & os, typename Xtcl::detail::Tuple<As...>)
 {
     for (auto n : Xtcl::detail::Tuple<As...>::names() | std::views::join_with(' '))
@@ -783,10 +783,10 @@ namespace Xtcl
         }
     };
 
-    template <typename... Ts>
+    template <typename ...Ts>
     class Type<std::tuple<Ts...>>
     {
-        static constexpr std::size_t const S {sizeof... (Ts)};
+        static constexpr std::size_t const S {sizeof ...(Ts)};
 
         using Tuple = detail::Tuple<Ts...>;
 
