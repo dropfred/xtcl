@@ -1,0 +1,236 @@
+diff --git a/include/xtcl.h b/include/xtcl.h
+index acc303b..522a510 100644
+--- a/include/xtcl.h
++++ b/include/xtcl.h
+@@ -35,88 +35,93 @@ namespace Xtcl
+             std::array<Function, S> fns;
+         };
+ 
+-        template <typename R, typename ...As>
+-        struct FunctionHelper
++        template <typename T>
++        struct FunctionReturn
+         {
+-            template <typename T>
+-            struct Return
++            static ToResult to(Tcl_Interp * tcl, T const & value)
+             {
+-                static ToResult to(Tcl_Interp * tcl, T const & value)
+-                {
+-                    return Xtcl::to(tcl, value);
+-                }
+-            };
++                return Xtcl::to(tcl, value);
++            }
++        };
+ 
+-            template <typename T>
+-            struct Return<Result<T>>
++        template <typename T>
++        struct FunctionReturn<Result<T>>
++        {
++            static ToResult to(Tcl_Interp * tcl, Result<T> && value)
+             {
+-                static ToResult to(Tcl_Interp * tcl, Result<T> && value)
++                if (not value)
+                 {
+-                    if (not value)
+-                    {
+-                        return Error::forward(value.error());
+-                    }
+-
+-                    return Xtcl::to(tcl, *value);
++                    return Error::forward(value.error());
+                 }
+-            };
++
++                return Xtcl::to(tcl, *value);
++            }
++        };
+ 
+ #if XTCL_SUPPORT_POINTER
+-            template <typename T>
+-            struct Return<T *>
++        template <typename T>
++        struct FunctionReturn<T *>
++        {
++            static ToResult to(Tcl_Interp * tcl, T * const value)
+             {
+-                static ToResult to(Tcl_Interp * tcl, T * const value)
+-                {
+-                    return Xtcl::to(tcl, *value);
+-                }
+-            };
++                return Xtcl::to(tcl, *value);
++            }
++        };
++#endif
+ 
+ #if XTCL_SUPPORT_CSTRING
+-            template <>
+-            struct Return<char const *>
++        template <>
++        struct FunctionReturn<char const *>
++        {
++            static ToResult to(Tcl_Interp * tcl, char const * value)
+             {
+-                static ToResult to(Tcl_Interp * tcl, char const * value)
+-                {
+-                    return Xtcl::to(tcl, value);
+-                }
+-            };
++                return Xtcl::to(tcl, value);
++            }
++        };
+ #endif
+ 
+-            template <typename T>
+-            struct Arg
+-            {
+-                static T && forward(T & v) {return std::move(v);}
+-            };
++        template <typename T>
++        struct FunctionArg
++        {
++            static T && forward(T & v) {return std::move(v);}
++        };
+ 
+-            template <typename T>
+-            struct Arg<T &>
+-            {
+-                static T & forward(T & v) {return v;}
+-            };
++        template <typename T>
++        struct FunctionArg<T &>
++        {
++            static T & forward(T & v) {return v;}
++        };
+ 
+-            template <typename T>
+-            struct Arg<T &&>
+-            {
+-                static T && forward(T & v) {return std::move(v);}
+-            };
++        template <typename T>
++        struct FunctionArg<T &&>
++        {
++            static T && forward(T & v) {return std::move(v);}
++        };
+ 
+ #if XTCL_SUPPORT_POINTER
+-            template <typename T>
+-            struct Arg<T *>
+-            {
+-                static T * forward(T & v) {return &v;}
+-            };
++        template <typename T>
++        struct FunctionArg<T *>
++        {
++            static T * forward(T & v) {return &v;}
++        };
+ #endif
+ 
+ #if XTCL_SUPPORT_CSTRING
+-            template <>
+-            struct Arg<char const *>
+-            {
+-                static char const * forward(char const * s) {return s;}
+-            };
+-#endif
++        template <>
++        struct FunctionArg<char const *>
++        {
++            static char const * forward(char const * s) {return s;}
++        };
+ #endif
+ 
++        template <typename R, typename ...As>
++        struct FunctionHelper
++        {
++            template <typename T>
++            using Return = FunctionReturn<T>;
++            template <typename T>
++            using Arg = FunctionArg<T>;
++
+             static constexpr std::size_t const S {sizeof ...(As)};
+ 
+             template <std::size_t ...Is>
+diff --git a/include/xtcl_type.h b/include/xtcl_type.h
+index 3a934bc..3dd61c0 100644
+--- a/include/xtcl_type.h
++++ b/include/xtcl_type.h
+@@ -79,43 +79,46 @@ namespace Xtcl
+ 
+     namespace detail
+     {
+-        template <typename ...Ts>
+-        class Tuple
++        template <typename ...>
++        struct TupleFrom;
++
++        template <>
++        struct TupleFrom<>
+         {
+-            template <typename ...>
+-            struct From;
++            static Xtcl::FromResult<std::tuple<>> values(Tcl_Interp * tcl, Tcl_Obj * const objv[])
++            {
++                return {};
++            }
++        };
+ 
+-            template <>
+-            struct From<>
++        template <typename V, typename ...Vs>
++        struct TupleFrom<V, Vs...>
++        {
++            static constexpr std::size_t const S {sizeof ...(Vs)};
++
++            static Xtcl::FromResult<std::tuple<V, Vs...>> values(Tcl_Interp * tcl, Tcl_Obj * const objv[])
+             {
+-                static Xtcl::FromResult<std::tuple<>> values(Tcl_Interp * tcl, Tcl_Obj * const objv[])
++                auto v = Xtcl::from<V>(tcl, objv[0]);
++                if (not v)
+                 {
+-                    return {};
++                    return Error::index(v.error(), S - (sizeof ...(Vs) + 1));
+                 }
+-            };
+ 
+-            template <typename V, typename ...Vs>
+-            struct From<V, Vs...>
+-            {
+-                static constexpr std::size_t const S {sizeof ...(Vs)};
+-
+-                static Xtcl::FromResult<std::tuple<V, Vs...>> values(Tcl_Interp * tcl, Tcl_Obj * const objv[])
++                auto vs = TupleFrom<Vs...>::values(tcl, objv + 1);
++                if (not vs)
+                 {
+-                    auto v = Xtcl::from<V>(tcl, objv[0]);
+-                    if (not v)
+-                    {
+-                        return Error::index(v.error(), S - (sizeof ...(Vs) + 1));
+-                    }
++                    return Error::forward(vs.error());
++                }
+ 
+-                    auto vs = From<Vs...>::values(tcl, objv + 1);
+-                    if (not vs)
+-                    {
+-                        return Error::forward(vs.error());
+-                    }
++                return std::tuple_cat(std::make_tuple(std::move(*v)), std::move(*vs));
++            }
++        };
+ 
+-                    return std::tuple_cat(std::make_tuple(std::move(*v)), std::move(*vs));
+-                }
+-            };
++        template <typename ...Ts>
++        class Tuple
++        {
++            template <typename ...>
++            using From = TupleFrom<Ts...>;
+ 
+         public :
+ 
