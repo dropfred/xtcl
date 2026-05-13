@@ -35,95 +35,9 @@ namespace Xtcl
             std::array<Function, S> fns;
         };
 
-#ifdef XTCL_GCC_FIX_N4659_17_7_3__2
-        template <typename T>
-        struct FunctionReturn
-        {
-            static ToResult to(Tcl_Interp * tcl, T const & value)
-            {
-                return Xtcl::to(tcl, value);
-            }
-        };
-
-        template <typename T>
-        struct FunctionReturn<Result<T>>
-        {
-            static ToResult to(Tcl_Interp * tcl, Result<T> && value)
-            {
-                if (not value)
-                {
-                    return Error::forward(value.error());
-                }
-
-                return Xtcl::to(tcl, *value);
-            }
-        };
-
-#if XTCL_SUPPORT_POINTER
-        template <typename T>
-        struct FunctionReturn<T *>
-        {
-            static ToResult to(Tcl_Interp * tcl, T * const value)
-            {
-                return Xtcl::to(tcl, *value);
-            }
-        };
-#endif
-
-#if XTCL_SUPPORT_CSTRING
-        template <>
-        struct FunctionReturn<char const *>
-        {
-            static ToResult to(Tcl_Interp * tcl, char const * value)
-            {
-                return Xtcl::to(tcl, value);
-            }
-        };
-#endif
-
-        template <typename T>
-        struct FunctionArg
-        {
-            static T && forward(T & v) {return std::move(v);}
-        };
-
-        template <typename T>
-        struct FunctionArg<T &>
-        {
-            static T & forward(T & v) {return v;}
-        };
-
-        template <typename T>
-        struct FunctionArg<T &&>
-        {
-            static T && forward(T & v) {return std::move(v);}
-        };
-
-#if XTCL_SUPPORT_POINTER
-        template <typename T>
-        struct FunctionArg<T *>
-        {
-            static T * forward(T & v) {return &v;}
-        };
-#endif
-
-#if XTCL_SUPPORT_CSTRING
-        template <>
-        struct FunctionArg<char const *>
-        {
-            static char const * forward(char const * s) {return s;}
-        };
-#endif
-#endif
         template <typename R, typename ...As>
         struct FunctionHelper
         {
-#ifdef XTCL_GCC_FIX_N4659_17_7_3__2
-            template <typename T>
-            using Return = FunctionReturn<T>;
-            template <typename T>
-            using Arg = FunctionArg<T>;
-#else
             template <typename T>
             struct Return
             {
@@ -156,7 +70,6 @@ namespace Xtcl
                     return Xtcl::to(tcl, *value);
                 }
             };
-#endif
 
 #if XTCL_SUPPORT_CSTRING
             template <>
