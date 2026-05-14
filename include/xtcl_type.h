@@ -82,6 +82,8 @@ namespace Xtcl
         template <typename ...Ts>
         class Tuple
         {
+            static constexpr std::size_t const S {sizeof ...(Ts)};
+
             template <typename ...>
             struct From;
 
@@ -97,8 +99,6 @@ namespace Xtcl
             template <typename V, typename ...Vs>
             struct From<V, Vs...>
             {
-                static constexpr std::size_t const S {sizeof ...(Vs)};
-
                 static Xtcl::FromResult<std::tuple<V, Vs...>> values(Tcl_Interp * tcl, Tcl_Obj * const objv[])
                 {
                     auto v = Xtcl::from<V>(tcl, objv[0]);
@@ -118,8 +118,6 @@ namespace Xtcl
             };
 
         public :
-
-            static constexpr std::size_t const S {sizeof ...(Ts)};
 
             using Values = std::tuple<Value<Ts>...>;
             using Names = std::array<std::string_view, S>;
