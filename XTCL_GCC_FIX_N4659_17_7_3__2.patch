@@ -156,7 +156,7 @@ index acc303b..522a510 100644
  
              template <std::size_t ...Is>
 diff --git a/include/xtcl_type.h b/include/xtcl_type.h
-index 3a934bc..3dd61c0 100644
+index c39fccd..86c5586 100644
 --- a/include/xtcl_type.h
 +++ b/include/xtcl_type.h
 @@ -79,43 +79,46 @@ namespace Xtcl
@@ -165,14 +165,16 @@ index 3a934bc..3dd61c0 100644
      {
 -        template <typename ...Ts>
 -        class Tuple
-+        template <typename ...>
+-        {
+-            static constexpr std::size_t const S {sizeof ...(Ts)};
++        template <std::size_t, typename ...>
 +        struct TupleFrom;
-+
-+        template <>
-+        struct TupleFrom<>
-         {
+ 
 -            template <typename ...>
 -            struct From;
++        template <std::size_t S>
++        struct TupleFrom<S>
++        {
 +            static Xtcl::FromResult<std::tuple<>> values(Tcl_Interp * tcl, Tcl_Obj * const objv[])
 +            {
 +                return {};
@@ -181,11 +183,9 @@ index 3a934bc..3dd61c0 100644
  
 -            template <>
 -            struct From<>
-+        template <typename V, typename ...Vs>
-+        struct TupleFrom<V, Vs...>
++        template <std::size_t S, typename V, typename ...Vs>
++        struct TupleFrom<S, V, Vs...>
 +        {
-+            static constexpr std::size_t const S {sizeof ...(Vs)};
-+
 +            static Xtcl::FromResult<std::tuple<V, Vs...>> values(Tcl_Interp * tcl, Tcl_Obj * const objv[])
              {
 -                static Xtcl::FromResult<std::tuple<>> values(Tcl_Interp * tcl, Tcl_Obj * const objv[])
@@ -200,10 +200,8 @@ index 3a934bc..3dd61c0 100644
 -            template <typename V, typename ...Vs>
 -            struct From<V, Vs...>
 -            {
--                static constexpr std::size_t const S {sizeof ...(Vs)};
--
 -                static Xtcl::FromResult<std::tuple<V, Vs...>> values(Tcl_Interp * tcl, Tcl_Obj * const objv[])
-+                auto vs = TupleFrom<Vs...>::values(tcl, objv + 1);
++                auto vs = TupleFrom<S, Vs...>::values(tcl, objv + 1);
 +                if (not vs)
                  {
 -                    auto v = Xtcl::from<V>(tcl, objv[0]);
@@ -229,8 +227,10 @@ index 3a934bc..3dd61c0 100644
 +        template <typename ...Ts>
 +        class Tuple
 +        {
++            static constexpr std::size_t const S {sizeof ...(Ts)};
++
 +            template <typename ...>
-+            using From = TupleFrom<Ts...>;
++            using From = TupleFrom<S, Ts...>;
  
          public :
  
