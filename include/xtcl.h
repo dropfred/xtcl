@@ -70,6 +70,7 @@ namespace Xtcl
                     return Xtcl::to(tcl, *value);
                 }
             };
+#endif
 
 #if XTCL_SUPPORT_CSTRING
             template <>
@@ -115,7 +116,6 @@ namespace Xtcl
                 static char const * forward(char const * s) {return s;}
             };
 #endif
-#endif
 
             static constexpr std::size_t const S {sizeof ...(As)};
 
@@ -123,7 +123,7 @@ namespace Xtcl
             static Function make(std::function<R(As...)> && fn, std::index_sequence<Is...>)
             {
                 using F = std::function<R(As...)>;
-                using Tuple = detail::Tuple<As...>;
+                using T = detail::Tuple<As...>;
 
                 return Function
                 {
@@ -131,7 +131,7 @@ namespace Xtcl
                     {
                         Tcl_ResetResult(tcl);
 
-                        auto args = Tuple::from(tcl, objc, objv);
+                        auto args = T::from(tcl, objc, objv);
 
                         if (not args)
                         {
