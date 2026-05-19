@@ -120,14 +120,14 @@ namespace Xtcl
             static constexpr std::size_t const S {sizeof ...(As)};
 
             template <std::size_t ...Is>
-            static Function make(std::function<R(As...)> && fn, std::index_sequence<Is...>)
+            static Function make(std::function<R (As...)> && fn, std::index_sequence<Is...>)
             {
-                using F = std::function<R(As...)>;
+                // using F = std::function<R (As...)>;
                 using T = detail::Tuple<As...>;
 
                 return Function
                 {
-                    [fn = std::move(fn)](Tcl_Interp * tcl, int objc, Tcl_Obj * const objv[]) -> TclResult
+                    [fn = std::move(fn)] (Tcl_Interp * tcl, int objc, Tcl_Obj * const objv[]) -> TclResult
                     {
                         Tcl_ResetResult(tcl);
 
@@ -142,7 +142,7 @@ namespace Xtcl
                                     os << name;
                                     if constexpr (S != 0)
                                     {
-                                        os << ' ' << Tuple{};
+                                        os << ' ' << T {};
                                     }
                                     os << ": "sv << error;
                                 }
@@ -152,8 +152,6 @@ namespace Xtcl
                         if constexpr (std::is_void_v<R>)
                         {
                             fn(Arg<As>::forward(std::get<Is>(*args))...);
-
-                            return TCL_OK;
                         }
                         else
                         {
@@ -165,9 +163,9 @@ namespace Xtcl
                             }
 
                             Tcl_SetObjResult(tcl, *r);
-
-                            return TCL_OK;
                         }
+
+                        return TCL_OK;
                     }
                 };
             }
